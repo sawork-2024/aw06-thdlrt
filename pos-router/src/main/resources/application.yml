@@ -1,0 +1,24 @@
+server:
+  port: 18081
+
+eureka:
+  instance:
+    hostname: localhost
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:18080/eureka/
+
+spring:
+  application:
+    name: router-service
+  cloud:
+    gateway:
+      routes:
+        - id: products-service
+          uri: lb://products-service
+          predicates:
+            - Path=/productsService/**
+        - id: orders-service
+          uri: lb://orders-service
+          predicates:
+            - Path=/ordersService/**
