@@ -1,4 +1,4 @@
-## 设计思路
+## 总体设计思路
 
 - 整体架构图
   - <img src="https://thdlrt.oss-cn-beijing.aliyuncs.com/image-20240515013145298.png" alt="image-20240515013145298" style="zoom:50%;" />
