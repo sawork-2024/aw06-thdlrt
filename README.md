@@ -1,8 +1,9 @@
-## 总体设计思路
+![0509DA06](https://github.com/sawork-2024/aw06-thdlrt/assets/102659095/74e3ef5a-f8fc-458f-98cd-e0432d8a4c8c)## 总体设计思路
 
 - 整体架构图
-  - <img src="https://thdlrt.oss-cn-beijing.aliyuncs.com/image-20240515013145298.png" alt="image-20240515013145298" style="zoom:50%;" />
-
+  - <img src="https://thdlrt.oss-cn-beijing.aliyuncs.com/image-20240605000701209.png" alt="image-20240605000701209" style="zoom:20%;" />
+- 总共拆分为5个模块：gateway、discover、product、order、model
+  
 #### Eureka配置与使用
 
 - 项目中的Eureka订阅结构
@@ -22,12 +23,6 @@ Eureka Server是一个服务注册中心，所有的微服务都会在这里注�
 之后在`pos-eureka`模块下创建一个Spring Boot应用，并添加`@EnableEurekaServer`注解：
 
 ```java
-package com.example.eureka;
-
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.cloud.netflix.eureka.server.EnableEurekaServer;
-
 @SpringBootApplication
 @EnableEurekaServer
 public class EurekaServerApplication {
@@ -41,7 +36,7 @@ public class EurekaServerApplication {
 
 ```yml
 server:
-  port: 18080
+  port: 8080
 eureka:
   client:
     register-with-eureka: false
@@ -51,9 +46,9 @@ eureka:
 
 ```
 
-#### router（Gateway）的配置
+#### Gateway的配置
 
-API Gateway是微服务架构中的入口，负责请求的路由、过滤和负载均衡等功能。
+API Gateway是微服务架构中的入口，负责请求的路由、过滤和负载均衡等功能。负责将请求分配到不同的模块来进行处理。
 
 在`pom.xml`中添加API Gateway的依赖：
 
@@ -69,24 +64,7 @@ API Gateway是微服务架构中的入口，负责请求的路由、过滤和负
 ```
 
 在`pos-router`模块下创建一个Spring Boot应用，并添加`@EnableEurekaClient`注解：
-
-```java
-package com.example.router;
-
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.cloud.netflix.eureka.EnableEurekaClient;
-
-@SpringBootApplication
-@EnableEurekaClient
-public class RouterApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(RouterApplication.class, args);
-    }
-}
-```
-
-在`application.yml`中配置API Gateway的路由规则：
+之后在`application.yml`中配置API Gateway的路由规则：分别将请求分配到product、order、model三个不同的模块
 
 ```yml
 spring:
@@ -98,11 +76,15 @@ spring:
         - id: products-service
           uri: lb://products-service
           predicates:
-            - Path=/productsService/**
+            - Path=/Product/**
         - id: orders-service
           uri: lb://orders-service
           predicates:
-            - Path=/ordersService/**
+            - Path=/Order/**
+        - id: models-service
+          uri: lb://models-service
+          predicates:
+            - Path=/products/**
 
 ```
 
@@ -118,26 +100,8 @@ spring:
     <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
 </dependency>
 ```
-
-在`pos-product`模块下创建一个Spring Boot应用，并添加`@EnableEurekaClient`注解：
-
-```java
-package com.example.product;
-
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.cloud.netflix.eureka.EnableEurekaClient;
-
-@SpringBootApplication
-@EnableEurekaClient
-public class ProductServiceApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(ProductServiceApplication.class, args);
-    }
-}
-```
-
-在`application.yml`中配置产品管理服务：
+在`pos-product`模块下创建一个Spring Boot应用，并添加`@EnableEurekaClient`注解，注册为eureka客户端
+在`application.yml`中配置产品管理服务：指明eureka节点的地址
 
 ```yml
 spring:
@@ -146,39 +110,32 @@ spring:
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:18080/eureka/
+      defaultZone: http://localhost:8080/eureka/
 ```
+#### 数据模块model
+- 本模块中定义了项目中使用的Item、Order、Product等数据类型
+- h2数据库在本模块中，由本模块对外提供关于product的操作（增删查询）。
+- product和order模块都是通过FeignClients使用http访问model模块来获取相关数据的（这样也避免对统一数据类型的重复定义）
 
-#### 功能实现
+- Feign示例
 
-代码结构
+ ```java
+@FeignClient(name = "models-service")
+public interface ProductClient {
 
-```css
-pos-order
-└── src
-    └── main
-        └── java
-            └── orders
-                ├── cli
-                ├── controller
-                ├── db
-                ├── map
-                ├── model
-                ├── service
-                └── OrdersApplication.java
+    @GetMapping("/products")
+    List<Product> getProducts();
 
+    @GetMapping("/products/{id}")
+    Product getProductById(@PathVariable("id") Long id);
+
+    @PutMapping("/products/{id}")
+    Product updateProduct(@PathVariable("id") Long id, @RequestBody Product product);
+
+    @GetMapping("/products/search/{name}")
+    List<Product> searchProductByName(@PathVariable("name") String name);
+}
 ```
-
-- cli: 命令行接口相关代码
-- controller: 控制器层代码，处理HTTP请求
-- db: 数据库访问层代码
-- map: 映射层代码
-- model: 数据模型代码
-- service: 服务层代码，包含业务逻辑
-
-`OrdersApplication.java` 是订单管理服务的主应用类，包含Spring Boot的启动代码。
-
-- product的实现方式类似，不再赘述
 
 ### 断路器的使用
 
@@ -194,7 +151,8 @@ pos-order
 ### 运行与测试
 
 - 运行状态：
-  - <img src="https://thdlrt.oss-cn-beijing.aliyuncs.com/image-20240515020046556.png" alt="image-20240515020046556" style="zoom:50%;" />
+  - ![image](https://github.com/sawork-2024/aw06-thdlrt/assets/102659095/d0cecd0a-f8ce-44bb-810d-d38096123a69)
+  - 所有模块都正确连接道路eureka
 
 #### 压力测试
 
