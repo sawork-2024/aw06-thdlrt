@@ -1,4 +1,4 @@
-![0509DA06](https://github.com/sawork-2024/aw06-thdlrt/assets/102659095/74e3ef5a-f8fc-458f-98cd-e0432d8a4c8c)## 总体设计思路
+## 总体设计思路
 
 - 整体架构图
   - <img src="https://thdlrt.oss-cn-beijing.aliyuncs.com/image-20240605000701209.png" alt="image-20240605000701209" style="zoom:20%;" />
